@@ -1,0 +1,112 @@
+#include "ApplicationFunctionSet_xxx0.h"
+#include "DeviceDriverSet_xxx0.h"
+
+DeviceDriverSet_ITR20001 ITR20001;
+
+// Ultrasonic sensor pins
+#define TRIG_PIN A4
+#define ECHO_PIN A3
+
+// Distance threshold for stopping (in cm)
+const float STOP_DISTANCE = 20.0;
+
+// Sensor threshold for detecting line vs. background
+const float SENSOR_THRESHOLD = 500.0;
+
+// Track mode: true for normal (black line, white background), false for inverted (white line, black background)
+bool normalTrackMode = true;
+
+void setup() {
+  Serial.begin(9600);
+  ITR20001.DeviceDriverSet_ITR20001_Init();
+  Application_FunctionSet.ApplicationFunctionSet_Init();
+
+  // Initialize ultrasonic sensor pins
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+}
+
+// Function to measure distance using ultrasonic sensor (returns distance in cm)
+float getDistance() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  long duration = pulseIn(ECHO_PIN, HIGH);
+  float distance = duration * 0.0343 / 2;
+  return distance;
+}
+
+void loop() {
+  // Read ultrasonic sensor distance
+  float distance = getDistance();
+
+  // Read ITR20001 sensor values
+  float leftSensor = ITR20001.DeviceDriverSet_ITR20001_getAnaloguexxx_L();
+  float middleSensor = ITR20001.DeviceDriverSet_ITR20001_getAnaloguexxx_M();
+  float rightSensor = ITR20001.DeviceDriverSet_ITR20001_getAnaloguexxx_R();
+
+  // Detect track mode (normal or inverted)
+  if (leftSensor > SENSOR_THRESHOLD && middleSensor < SENSOR_THRESHOLD && rightSensor > SENSOR_THRESHOLD) {
+    // Inverted: white line (low middle), black background (high left/right)
+    normalTrackMode = false;
+  } else if (leftSensor < SENSOR_THRESHOLD && middleSensor > SENSOR_THRESHOLD && rightSensor < SENSOR_THRESHOLD) {
+    // Normal: black line (high middle), white background (low left/right)
+    normalTrackMode = true;
+  }
+
+  // Debug output
+  Serial.print("L=");
+  Serial.print(leftSensor);
+  Serial.print(" M=");
+  Serial.print(middleSensor);
+  Serial.print(" R=");
+  Serial.print(rightSensor);
+  Serial.print(" Distance=");
+  Serial.print(distance);
+  Serial.print(" cm Mode=");
+  Serial.println(normalTrackMode ? "Normal" : "Inverted");
+
+  // Check if an object is within STOP_DISTANCE
+  if (distance < STOP_DISTANCE && distance > 0) {
+    // Object detected: stop the robot
+    Application_FunctionSet.ApplicationFunctionSet_SmartRobotCarMotionControl(SmartRobotCarMotionControl_stop, 0);
+  } else {
+    // No object: proceed with line-following logic
+    if (normalTrackMode) {
+      // Normal mode: black line (high values), white background (low values)
+      if (middleSensor > SENSOR_THRESHOLD && leftSensor < SENSOR_THRESHOLD && rightSensor < SENSOR_THRESHOLD) {
+        // On track: move forward
+        Application_FunctionSet.ApplicationFunctionSet_SmartRobotCarMotionControl(SmartRobotCarMotionControl_forward, 150);
+      } else if (leftSensor > SENSOR_THRESHOLD) {
+        // Veering right: turn left
+        Application_FunctionSet.ApplicationFunctionSet_SmartRobotCarMotionControl(SmartRobotCarMotionControl_left, 150);
+      } else if (rightSensor > SENSOR_THRESHOLD) {
+        // Veering left: turn right
+        Application_FunctionSet.ApplicationFunctionSet_SmartRobotCarMotionControl(SmartRobotCarMotionControl_right, 150);
+      } else {
+        // Lost track: stop
+        Application_FunctionSet.ApplicationFunctionSet_SmartRobotCarMotionControl(SmartRobotCarMotionControl_stop, 0);
+      }
+    } else {
+      // Inverted mode: white line (low values), black background (high values)
+      if (middleSensor < SENSOR_THRESHOLD && leftSensor > SENSOR_THRESHOLD && rightSensor > SENSOR_THRESHOLD) {
+        // On track: move forward
+        Application_FunctionSet.ApplicationFunctionSet_SmartRobotCarMotionControl(SmartRobotCarMotionControl_forward, 150);
+      } else if (leftSensor < SENSOR_THRESHOLD) {
+        // Veering right: turn left
+        Application_FunctionSet.ApplicationFunctionSet_SmartRobotCarMotionControl(SmartRobotCarMotionControl_left, 150);
+      } else if (rightSensor < SENSOR_THRESHOLD) {
+        // Veering left: turn right
+        Application_FunctionSet.ApplicationFunctionSet_SmartRobotCarMotionControl(SmartRobotCarMotionControl_right, 150);
+      } else {
+        // Lost track: stop
+        Application_FunctionSet.ApplicationFunctionSet_SmartRobotCarMotionControl(SmartRobotCarMotionControl_stop, 0);
+      }
+    }
+  }
+
+  delay(50); // Stability delay
+}
