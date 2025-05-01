@@ -1,0 +1,46 @@
+#include "ApplicationFunctionSet_xxx0.h"
+#include "DeviceDriverSet_xxx0.h"
+
+DeviceDriverSet_ITR20001 ITR20001;
+// ApplicationFunctionSet Application_FunctionSet; // Remove this line if present, as it's defined in ApplicationFunctionSet_xxx0.cpp
+
+void setup() {
+  Serial.begin(9600);
+  ITR20001.DeviceDriverSet_ITR20001_Init();
+  Application_FunctionSet.ApplicationFunctionSet_Init();
+}
+
+void loop() {
+  // Read sensor values
+  float leftSensor = ITR20001.DeviceDriverSet_ITR20001_getAnaloguexxx_L();
+  float middleSensor = ITR20001.DeviceDriverSet_ITR20001_getAnaloguexxx_M();
+  float rightSensor = ITR20001.DeviceDriverSet_ITR20001_getAnaloguexxx_R();
+
+  // Threshold for detecting line (adjust based on sensor readings)
+  const float threshold = 500;
+
+  // Line-following logic
+  if (middleSensor > threshold && leftSensor < threshold && rightSensor < threshold) {
+    // On track: move forward
+    Application_FunctionSet.ApplicationFunctionSet_SmartRobotCarMotionControl(SmartRobotCarMotionControl_forward, 100);
+  } else if (leftSensor > threshold) {
+    // Veering right: turn left
+    Application_FunctionSet.ApplicationFunctionSet_SmartRobotCarMotionControl(SmartRobotCarMotionControl_left, 100);
+  } else if (rightSensor > threshold) {
+    // Veering left: turn right
+    Application_FunctionSet.ApplicationFunctionSet_SmartRobotCarMotionControl(SmartRobotCarMotionControl_right, 100);
+  } else {
+    // Lost track: stop
+    Application_FunctionSet.ApplicationFunctionSet_SmartRobotCarMotionControl(SmartRobotCarMotionControl_stop, 0);
+  }
+
+  // Debug output
+  Serial.print("L=");
+  Serial.print(leftSensor);
+  Serial.print(" M=");
+  Serial.print(middleSensor);
+  Serial.print(" R=");
+  Serial.println(rightSensor);
+
+  delay(50); // Stability delay
+}
